@@ -1,5 +1,5 @@
 --=============================================================
---  PXZD HUB - AVS v12
+--  PXZD HUB - AVS v13
 --  PARTE 1/5: Configuración
 --=============================================================
 
@@ -53,13 +53,13 @@ local ESTADO = {
     itemSeleccionado = nil,
     filtroBusqueda = "",
     guiAbierta = true,
-    ocultos = {},
-    visualActual = nil,
+    toolVisual = nil,
+    toolOrigOculto = nil,
+    transparencias = {},
     listaActual = {},
     efectoSeleccionado = nil,
-    weldInfo = nil,
 }--=============================================================
---  PARTE 2/5: GUI completa
+--  PARTE 2/5: GUI
 --=============================================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "PXZD_AVS_"..HttpService:GenerateGUID(false):sub(1,6)
@@ -70,7 +70,6 @@ if gethui then screenGui.Parent = gethui()
 elseif CoreGui then screenGui.Parent = CoreGui
 else screenGui.Parent = player:WaitForChild("PlayerGui") end
 
--- Loading
 local loadingFrame = Instance.new("Frame")
 loadingFrame.Size = UDim2.new(0, 320, 0, 120)
 loadingFrame.Position = UDim2.new(0.5, -160, 0.5, -60)
@@ -144,7 +143,6 @@ task.spawn(function()
     end
 end)
 
--- Botón flotante
 local floatBtn = Instance.new("TextButton")
 floatBtn.Size = UDim2.new(0, 55, 0, 55)
 floatBtn.Position = UDim2.new(0, 20, 0.5, -27)
@@ -194,7 +192,6 @@ task.spawn(function()
     end
 end)
 
--- Ventana principal
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 440, 0, 400)
 mainFrame.Position = UDim2.new(0, 90, 0.5, -200)
@@ -287,7 +284,6 @@ closeBtn.ZIndex = 6
 closeBtn.Parent = mainFrame
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 
--- Tabs
 local tabsFrame = Instance.new("Frame")
 tabsFrame.Size = UDim2.new(1, -24, 0, 32)
 tabsFrame.Position = UDim2.new(0, 12, 0, 46)
@@ -329,7 +325,6 @@ botonesTabs = {
     Efectos = {btn = tabEfectos, stroke = strokeEfectos},
 }
 
--- Buscador
 local searchFrame = Instance.new("Frame")
 searchFrame.Size = UDim2.new(1, -24, 0, 32)
 searchFrame.Position = UDim2.new(0, 12, 0, 84)
@@ -363,7 +358,6 @@ searchBox.ClearTextOnFocus = false
 searchBox.ZIndex = 6
 searchBox.Parent = searchFrame
 
--- Cuadrícula
 local scrollFrame = Instance.new("ScrollingFrame")
 scrollFrame.Size = UDim2.new(1, -24, 1, -180)
 scrollFrame.Position = UDim2.new(0, 12, 0, 124)
@@ -400,7 +394,7 @@ infoLabel.TextSize = 11
 infoLabel.TextXAlignment = Enum.TextXAlignment.Left
 infoLabel.ZIndex = 5
 infoLabel.Parent = mainFrame--=============================================================
---  PARTE 3/5: Helpers y detección
+--  PARTE 3/5: Helpers
 --=============================================================
 local function colorDeNombre(nombre)
     local h = 0
@@ -440,7 +434,6 @@ local function detectarCategoria(categoria)
     pcall(function() escanear(ReplicatedStorage, categoria, e, 0) end)
     pcall(function() escanear(Workspace, categoria, e, 0) end)
     pcall(function() escanear(game:GetService("StarterPack"), categoria, e, 0) end)
-    pcall(function() escanear(game:GetService("Lighting"), categoria, e, 0) end)
     if player.Backpack then pcall(function() escanear(player.Backpack, categoria, e, 0) end) end
     if player.Character then pcall(function() escanear(player.Character, categoria, e, 0) end) end
     return e
@@ -497,59 +490,14 @@ local function crearPlaceholder(nombre, categoria)
         end
     end
     return m
-end
-
-local function ocultarObjeto(obj)
-    if not obj then return end
-    local info = {obj = obj}
-    pcall(function()
-        if obj:IsA("BasePart") then
-            info.transp = obj.Transparency; info.visible = obj.Visible; info.collide = obj.CanCollide
-            obj.Transparency = 1; obj.Visible = false; obj.CanCollide = false
-        elseif obj:IsA("Decal") or obj:IsA("Texture") then
-            info.transp = obj.Transparency; info.visible = obj.Visible
-            obj.Transparency = 1; obj.Visible = false
-        elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") or obj:IsA("GuiObject") then
-            info.enabled = obj.Enabled; info.visible = obj.Visible
-            obj.Enabled = false; obj.Visible = false
-        elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
-            or obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
-            info.enabled = obj.Enabled; obj.Enabled = false
-        end
-    end)
-    table.insert(ESTADO.ocultos, info)
-end
-
-local function restaurarOcultos()
-    for _, info in ipairs(ESTADO.ocultos) do
-        pcall(function()
-            if info.obj and info.obj.Parent then
-                if info.transp ~= nil then info.obj.Transparency = info.transp end
-                if info.visible ~= nil then info.obj.Visible = info.visible end
-                if info.collide ~= nil then info.obj.CanCollide = info.collide end
-                if info.enabled ~= nil then info.obj.Enabled = info.enabled end
-            end
-        end)
-    end
-    ESTADO.ocultos = {}
-end
-
-local function limpiarVisual()
-    if ESTADO.visualActual and ESTADO.visualActual.Parent then
-        pcall(function() ESTADO.visualActual:Destroy() end)
-    end
-    ESTADO.visualActual = nil
-end--=============================================================
---  PARTE 4/5: EQUIPAR (posición EXACTA)
---=============================================================
-local function equiparItem(datos, categoria)
+endlocal function equiparItem(datos, categoria)
     local char = player.Character
-    if not char then return end
+    if not char then infoLabel.Text = "⚠ Sin personaje"; return end
 
-    limpiarVisual()
-    restaurarOcultos()
+    -- 1. Limpiar visual anterior
+    limpiarToolVisual()
 
-    -- 🔑 1. Buscar Tool equipado
+    -- 2. Encontrar el arma original
     local armaOrig = nil
     for _, obj in ipairs(char:GetChildren()) do
         if obj:IsA("Tool") and not obj:GetAttribute("PXZD_Visual") then
@@ -559,18 +507,18 @@ local function equiparItem(datos, categoria)
     end
 
     if not armaOrig then
-        infoLabel.Text = "⚠ No hay arma equipada"
+        infoLabel.Text = "⚠ No hay arma original"
         return
     end
 
-    -- 🔑 2. Buscar Handle
+    -- 3. Encontrar el Handle del arma original
     local handleOrig = armaOrig:FindFirstChild("Handle") or armaOrig:FindFirstChildWhichIsA("BasePart")
     if not handleOrig then
         infoLabel.Text = "⚠ Arma sin Handle"
         return
     end
 
-    -- 🔑 3. Buscar el weld original
+    -- 4. 🔑 ENCONTRAR EL WELD EXACTO
     local weldOrig = nil
     for _, w in ipairs(handleOrig:GetChildren()) do
         if w:IsA("Weld") or w:IsA("Motor6D") or w:IsA("WeldConstraint") then
@@ -584,51 +532,59 @@ local function equiparItem(datos, categoria)
         return
     end
 
-    -- 🔑 4. Capturar datos EXACTOS del weld
+    -- 5. 🔑 GUARDAR LOS DATOS EXACTOS
     local part0 = weldOrig.Part0
     local c0 = weldOrig.C0 or CFrame.new(0,0,0)
     local c1 = weldOrig.C1 or CFrame.new(0,0,0)
     local tipoWeld = weldOrig.ClassName
 
-    ESTADO.weldInfo = {part0 = part0, c0 = c0, c1 = c1, tipoWeld = tipoWeld}
+    print("[PXZD] Weld capturado: Part0="..tostring(part0).." C0="..tostring(c0))
 
-    print("[PXZD] 🔍 Weld capturado:")
-    print("  Part0: "..tostring(part0))
-    print("  C0: "..tostring(c0))
+    -- 6. 🔑 CALCULAR LA POSICIÓN MUNDIAL EXACTA DEL HANDLE
+    local cframeExacto = part0.CFrame * c0 * c1:Inverse()
 
-    -- 🔑 5. Ocultar arma original
-    ocultarObjeto(armaOrig)
-    for _, d in ipairs(armaOrig:GetDescendants()) do
-        ocultarObjeto(d)
-    end
+    -- 7. Ocultar el arma original
+    ocultarToolOriginal()
 
-    -- 🔑 6. Crear la nueva
-    local clon
+    -- 8. Obtener el modelo de la nueva arma
+    local modeloArma
     if datos.objeto then
         local ok, c = pcall(function() return datos.objeto:Clone() end)
-        if ok and c then clon = c end
+        if ok and c then modeloArma = c end
     end
-    if not clon then
-        clon = crearPlaceholder(datos.nombre, categoria)
+    if not modeloArma then
+        modeloArma = crearPlaceholder(datos.nombre, categoria)
     end
 
-    local partes = {}
-    for _, p in ipairs(clon:GetDescendants()) do
-        if p:IsA("BasePart") then table.insert(partes, p) end
-    end
-    if clon:IsA("BasePart") then table.insert(partes, clon) end
-    if #partes == 0 then return end
-
-    -- 🔑 7. Handle de la nueva
+    -- 9. Buscar el Handle del nuevo modelo
     local handleNuevo
-    for _, p in ipairs(partes) do
-        local ln = string.lower(p.Name)
-        if ln == "handle" or ln == "grip" then handleNuevo = p; break end
+    if modeloArma:IsA("BasePart") then
+        handleNuevo = modeloArma
+        handleNuevo.Name = "Handle"
+    else
+        for _, p in ipairs(modeloArma:GetDescendants()) do
+            if p:IsA("BasePart") and string.lower(p.Name) == "handle" then
+                handleNuevo = p
+                break
+            end
+        end
+        if not handleNuevo then
+            for _, p in ipairs(modeloArma:GetDescendants()) do
+                if p:IsA("BasePart") then handleNuevo = p; break end
+            end
+        end
     end
     if not handleNuevo then
-        table.sort(partes, function(a,b) return a.Size.Magnitude < b.Size.Magnitude end)
-        handleNuevo = partes[1]
+        infoLabel.Text = "⚠ Arma sin handle"
+        return
     end
+
+    -- 10. Recoger todas las partes y posiciones relativas al handle
+    local partes = {}
+    for _, p in ipairs(modeloArma:GetDescendants()) do
+        if p:IsA("BasePart") then table.insert(partes, p) end
+    end
+    if not table.find(partes, handleNuevo) then table.insert(partes, handleNuevo) end
 
     local relativas = {}
     for _, p in ipairs(partes) do
@@ -637,144 +593,62 @@ local function equiparItem(datos, categoria)
         end
     end
 
-    clon.Parent = char
+    -- 11. Preparar partes
     for _, p in ipairs(partes) do
-        p.Anchored = true; p.CanCollide = false; p.Massless = true
+        p.Anchored = true
+        p.CanCollide = false
+        p.Massless = true
         p:SetAttribute("PXZD_Visual", true)
     end
 
-    -- 🔑 8. 🔥 APLICAR MISMO WELD EXACTO
-    -- Fórmula: handleNuevo.CFrame = part0.CFrame * c0 * c1:Inverse()
-    local destinoCF = part0.CFrame * c0 * c1:Inverse()
-    handleNuevo.CFrame = destinoCF
-
+    -- 12. Meter al Character (NO con EquipTool, solo parenting)
+    handleNuevo.CFrame = cframeExacto
+    handleNuevo.Parent = char
     for _, p in ipairs(partes) do
         if p ~= handleNuevo then
             p.CFrame = handleNuevo.CFrame * relativas[p]
+            p.Parent = char
         end
     end
 
-    -- 🔑 9. Crear Weld con los MISMOS valores
-    local wNuevo
+    -- 13. 🔥🔥🔥 CREAR EL WELD CON LOS MISMOS VALORES
+    -- Esto hace que la nueva arma quede EXACTAMENTE donde estaba la original
+    local weldNuevo
     if tipoWeld == "Weld" then
-        wNuevo = Instance.new("Weld")
-        wNuevo.Part0 = part0
-        wNuevo.Part1 = handleNuevo
-        wNuevo.C0 = c0
-        wNuevo.C1 = c1
+        weldNuevo = Instance.new("Weld")
     elseif tipoWeld == "Motor6D" then
-        wNuevo = Instance.new("Motor6D")
-        wNuevo.Part0 = part0
-        wNuevo.Part1 = handleNuevo
-        wNuevo.C0 = c0
-        wNuevo.C1 = c1
+        weldNuevo = Instance.new("Motor6D")
     else
-        wNuevo = Instance.new("WeldConstraint")
-        wNuevo.Part0 = part0
-        wNuevo.Part1 = handleNuevo
+        weldNuevo = Instance.new("Weld")
     end
-    wNuevo.Parent = handleNuevo
+    
+    weldNuevo.Part0 = part0
+    weldNuevo.Part1 = handleNuevo
+    if weldNuevo:IsA("Weld") or weldNuevo:IsA("Motor6D") then
+        weldNuevo.C0 = c0
+        weldNuevo.C1 = c1
+    end
+    weldNuevo.Parent = handleNuevo
 
-    -- 🔑 10. Soldar el resto al handle
+    -- 14. Soldar las demás partes al Handle
     for _, p in ipairs(partes) do
         if p ~= handleNuevo then
-            local w = Instance.new("WeldConstraint")
+            local w = Instance.new("Weld")
             w.Part0 = handleNuevo
             w.Part1 = p
+            w.C0 = relativas[p]
+            w.C1 = CFrame.new(0,0,0)
             w.Parent = p
             p.Anchored = false
         end
     end
     handleNuevo.Anchored = false
 
-    ESTADO.visualActual = clon
+    ESTADO.toolVisual = modeloArma
     infoLabel.Text = "✦ "..datos.nombre.." ✓"
-end
-
---=============================================================
---  EFECTOS AL MATAR
---=============================================================
-local function seleccionarEfecto(datos)
-    ESTADO.efectoSeleccionado = datos
-    infoLabel.Text = "✨ "..datos.nombre.." activo al matar"
-end
-
-local function aplicarEfectoAlMuerto(victima)
-    if not ESTADO.efectoSeleccionado then return end
-    local datos = ESTADO.efectoSeleccionado
-    local char = victima
-    if not char or not char.Parent then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso")
-    if not hrp then return end
-
-    local aplicado = false
-    if datos.objeto then
-        for _, d in ipairs(datos.objeto:GetDescendants()) do
-            if d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam")
-               or d:IsA("PointLight") or d:IsA("SpotLight") then
-                local ok, clon = pcall(function() return d:Clone() end)
-                if ok and clon then
-                    clon.Parent = hrp; aplicado = true
-                    task.delay(5, function() if clon then clon:Destroy() end end)
-                end
-            end
-        end
-    end
-
-    if not aplicado then
-        local color = colorDeNombre(datos.nombre)
-        if string.find(string.lower(datos.nombre), "blood", 1, true) then
-            color = Color3.fromRGB(180, 10, 10)
-        end
-        local pe = Instance.new("ParticleEmitter")
-        pe.Texture = "rbxassetid://243660364"; pe.LightEmission = 1
-        pe.Color = ColorSequence.new(color)
-        pe.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0)})
-        pe.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1)})
-        pe.Lifetime = NumberRange.new(0.8, 1.5); pe.Rate = 60
-        pe.Speed = NumberRange.new(3, 6); pe.SpreadAngle = Vector2.new(180, 180)
-        pe.Parent = hrp
-        task.delay(5, function() if pe then pe:Destroy() end end)
-
-        local pl = Instance.new("PointLight")
-        pl.Color = color; pl.Brightness = 5; pl.Range = 15
-        pl.Parent = hrp
-        task.delay(5, function() if pl then pl:Destroy() end end)
-    end
-end
-
-local function conectarHumanoid(hum, char)
-    if not hum or not char then return end
-    hum.Died:Connect(function()
-        if char == player.Character then return end
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        local hrpV = char:FindFirstChild("HumanoidRootPart")
-        if hrp and hrpV and (hrp.Position - hrpV.Position).Magnitude < 100 then
-            task.wait(0.1)
-            aplicarEfectoAlMuerto(char)
-        end
-    end)
-end
-
-local function vigilar(char)
-    if not char then return end
-    local hum = char:WaitForChild("Humanoid", 5)
-    if hum then conectarHumanoid(hum, char) end
-end
-
-for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= player then
-        if p.Character then vigilar(p.Character) end
-        p.CharacterAdded:Connect(vigilar)
-    end
-end
-Players.PlayerAdded:Connect(function(p)
-    if p ~= player then
-        p.CharacterAdded:Connect(vigilar)
-        if p.Character then vigilar(p.Character) end
-    end
-end)--=============================================================
---  PARTE 5/5: Lista, conexiones y carga
+    print("[PXZD] ✓ "..datos.nombre.." en la posición exacta del arma original")
+    end--=============================================================
+--  PARTE 5/5: Lista y conexiones finales
 --=============================================================
 local function crearVistaPrevia(item, contenedor, nombre, categoria)
     local viewport = Instance.new("ViewportFrame")
@@ -895,27 +769,21 @@ local function cambiarCategoria(categoria)
     mostrarLista()
 end
 
--- 🔥 Loop agresivo: forzar ocultado cada frame
+-- Loop: mantener oculto el Tool original
 RunService.RenderStepped:Connect(function()
-    if #ESTADO.ocultos == 0 then return end
-    for _, info in ipairs(ESTADO.ocultos) do
-        pcall(function()
-            if info.obj and info.obj.Parent then
-                if info.transp ~= nil and (info.obj:IsA("BasePart") or info.obj:IsA("Decal") or info.obj:IsA("Texture")) then
-                    if info.obj.Transparency < 1 then info.obj.Transparency = 1 end
+    if ESTADO.toolOrigOculto and ESTADO.toolOrigOculto.Parent then
+        for _, d in ipairs(ESTADO.toolOrigOculto:GetDescendants()) do
+            pcall(function()
+                if d:IsA("BasePart") or d:IsA("Decal") or d:IsA("Texture") then
+                    if d.Transparency < 1 then d.Transparency = 1 end
+                elseif d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") then
+                    if d.Enabled then d.Enabled = false end
                 end
-                if info.visible ~= nil and (info.obj:IsA("BasePart") or info.obj:IsA("Decal") or info.obj:IsA("Texture") or info.obj:IsA("GuiObject")) then
-                    if info.obj.Visible ~= false then info.obj.Visible = false end
-                end
-                if info.enabled ~= nil then
-                    if info.obj.Enabled then info.obj.Enabled = false end
-                end
-            end
-        end)
+            end)
+        end
     end
 end)
 
--- Conexiones
 tabCuchillos.MouseButton1Click:Connect(function() pcall(function() cambiarCategoria("Cuchillos") end) end)
 tabPistolas.MouseButton1Click:Connect(function() pcall(function() cambiarCategoria("Pistolas") end) end)
 tabEfectos.MouseButton1Click:Connect(function() pcall(function() cambiarCategoria("Efectos") end) end)
@@ -935,21 +803,12 @@ floatBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = ESTADO.guiAbierta
 end)
 
--- Auto re-equipar cuando el juego te da Tool
+-- Auto re-equipar cuando el juego da un Tool
 local function vigilarCharacter(char)
     if not char then return end
     char.ChildAdded:Connect(function(child)
         if child:IsA("Tool") and not child:GetAttribute("PXZD_Visual") then
             task.wait(0.5)
-            if ESTADO.itemSeleccionado and ESTADO.itemSeleccionado.categoria ~= "Efectos" then
-                pcall(function() equiparItem(ESTADO.itemSeleccionado, ESTADO.itemSeleccionado.categoria) end)
-            end
-        end
-    end)
-    char.ChildRemoved:Connect(function(child)
-        if child:IsA("Tool") and not child:GetAttribute("PXZD_Visual") then
-            task.wait(0.3)
-            pcall(function() restaurarOcultos() end)
             if ESTADO.itemSeleccionado and ESTADO.itemSeleccionado.categoria ~= "Efectos" then
                 pcall(function() equiparItem(ESTADO.itemSeleccionado, ESTADO.itemSeleccionado.categoria) end)
             end
@@ -991,4 +850,4 @@ task.spawn(function()
     pcall(function() cambiarCategoria("Cuchillos") end)
 end)
 
-print("⚔️ PXZD HUB v12 cargado")
+print("⚔️ PXZD HUB v13 cargado")
